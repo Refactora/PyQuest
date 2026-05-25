@@ -10,6 +10,8 @@ from app.core.security import (
     verify_password,
 )
 from app.models.user import User
+from app.models.location import Location
+from app.models.progress import UserLocationProgress, Achievement
 from app.schemas.auth import (
     AuthResponse,
     LoginRequest,
@@ -17,6 +19,7 @@ from app.schemas.auth import (
     RegisterRequest,
     UserResponse,
 )
+from app.services.xp_service import xp_for_level
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 security = HTTPBearer()
@@ -41,6 +44,19 @@ def get_current_user(
     return user
 
 
+def _create_initial_progress(user: User, db: Session):
+    """Створює прогрес для всіх локацій після реєстрації."""
+    locations = db.query(Location).filter(Location.is_active == True).order_by(Location.order_index).all()
+    for i, loc in enumerate(locations):
+        status_val = "available" if i == 0 else "locked"
+        progress = UserLocationProgress(
+            user_id=user.id,
+            location_id=loc.id,
+            status=status_val,
+        )
+        db.add(progress)
+
+
 @router.post("/register", response_model=AuthResponse, status_code=201)
 def register(request: RegisterRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == request.email).first():
@@ -48,15 +64,27 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == request.username).first():
         raise HTTPException(status_code=409, detail="Це ім'я вже зайнято")
 
+    xp_to_next = xp_for_level(2) - xp_for_level(1)  # = 100
+
     user = User(
         username=request.username,
         email=request.email,
         password_hash=hash_password(request.password),
         avatar_id=request.avatar_id,
+        level=1,
+        xp=0,
+        xp_to_next=xp_to_next,
+        total_xp=0,
+        hp_max=5,
+        streak_days=0,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Ініціалізуємо прогрес по всіх локаціях
+    _create_initial_progress(user, db)
+    db.commit()
 
     token = create_access_token({"sub": user.id})
     return AuthResponse(user=UserResponse.model_validate(user), access_token=token)
