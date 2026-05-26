@@ -604,3 +604,91 @@ function LeaderboardRow({ entry, medals, avatars }: {
     </div>
   )
 }
+
+// ============================================================
+// ACHIEVEMENTS PAGE
+// ============================================================
+export function AchievementsPage() {
+  const [profile, setProfile] = useState<ProfileResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    profileApi.get().then(setProfile).finally(() => setIsLoading(false))
+  }, [])
+
+  const ALL_ACHIEVEMENTS = [
+    { slug: 'first_blood',   name: 'Перший Крип',       description: 'Дай першу правильну відповідь',        icon: '⚔️',  xp: 10  },
+    { slug: 'no_death_1',    name: 'Безсмертний',         description: 'Пройди квіз без жодної смерті',        icon: '🛡️',  xp: 25  },
+    { slug: 'boss_slayer',   name: 'Переможець Босів',    description: 'Вбий першого боса',                    icon: '💀',  xp: 50  },
+    { slug: 'all_bosses',    name: 'Кілер Босів',         description: 'Вбий всіх 10 босів',                   icon: '👑',  xp: 200 },
+    { slug: 'perfectionist', name: 'Перфекціоніст',       description: '10/10 у квізі без помилок',            icon: '⭐',  xp: 30  },
+    { slug: 'first_try',     name: 'З Першої Спроби',     description: 'Вбий боса з першої спроби',            icon: '⚡',  xp: 50  },
+    { slug: 'no_hints',      name: 'Без Підказок',        description: 'Вбий боса без підказок',               icon: '🧠',  xp: 30  },
+    { slug: 'streak_3',      name: 'На Роботі',           description: '3 дні стріку поспіль',                 icon: '🔥',  xp: 30  },
+    { slug: 'streak_7',      name: 'Тижневий Герой',      description: 'Стрік 7 днів',                         icon: '🔥',  xp: 100 },
+    { slug: 'streak_30',     name: 'Місячний Герой',      description: 'Стрік 30 днів',                        icon: '🔥',  xp: 500 },
+    { slug: 'speed_run',     name: 'Спідранер',           description: 'Пройди локацію менш ніж за 5 хвилин',  icon: '⏱️',  xp: 75  },
+    { slug: 'completionist', name: 'Завершувач',          description: 'Пройди всі 10 локацій',                icon: '🏆',  xp: 300 },
+    { slug: 'level_10',      name: 'Досвідчений',         description: 'Досягни 10 рівня',                     icon: '💎',  xp: 50  },
+    { slug: 'level_20',      name: 'Ветеран',             description: 'Досягни 20 рівня',                     icon: '💎',  xp: 100 },
+  ]
+
+  const unlockedSlugs = new Set(profile?.achievements.map(a => a.slug) ?? [])
+  const unlocked = ALL_ACHIEVEMENTS.filter(a => unlockedSlugs.has(a.slug))
+  const locked = ALL_ACHIEVEMENTS.filter(a => !unlockedSlugs.has(a.slug))
+
+  return (
+    <GameLayout>
+      <div className="max-w-3xl mx-auto">
+        <h1 className="text-2xl font-bold text-white mb-1">🏅 Досягнення</h1>
+        {profile && (
+          <p className="text-gray-400 text-sm mb-5">
+            Розблоковано: {unlocked.length} / {ALL_ACHIEVEMENTS.length}
+          </p>
+        )}
+
+        {isLoading ? (
+          <div className="text-center py-20 text-gray-400">Завантаження...</div>
+        ) : (
+          <div className="space-y-6">
+            {unlocked.length > 0 && (
+              <div>
+                <h2 className="text-green-400 font-semibold mb-3">✅ Отримані</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {unlocked.map(a => (
+                    <div key={a.slug} className="bg-gray-800 border border-green-700/40 rounded-xl p-4 flex items-center gap-3">
+                      <span className="text-3xl">{a.icon}</span>
+                      <div>
+                        <p className="text-white font-medium">{a.name}</p>
+                        <p className="text-gray-400 text-xs">{a.description}</p>
+                        <p className="text-yellow-400 text-xs mt-1">+{a.xp} XP</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {locked.length > 0 && (
+              <div>
+                <h2 className="text-gray-500 font-semibold mb-3">🔒 Заблоковані</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {locked.map(a => (
+                    <div key={a.slug} className="bg-gray-900 border border-gray-700 rounded-xl p-4 flex items-center gap-3 opacity-50">
+                      <span className="text-3xl grayscale">{a.icon}</span>
+                      <div>
+                        <p className="text-gray-400 font-medium">{a.name}</p>
+                        <p className="text-gray-600 text-xs">{a.description}</p>
+                        <p className="text-gray-600 text-xs mt-1">+{a.xp} XP</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </GameLayout>
+  )
+}

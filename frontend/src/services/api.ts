@@ -84,3 +84,8 @@ export const leaderboardApi = {
 }
 
 export default api
+
+// ===== DAILY QUESTS =====
+export const dailyQuestsApi = {
+  get: () => api.get<import('../types').DailyQuestsResponse>('/daily-quests').then(r => r.data),
+}

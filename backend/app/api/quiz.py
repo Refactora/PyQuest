@@ -13,54 +13,43 @@ router = APIRouter(prefix="/quiz", tags=["Quiz"])
 class StartQuizRequest(BaseModel):
     location_slug: str
 
-
 class AnswerRequest(BaseModel):
     session_id: str
     question_id: int
     selected_option: str  # 'a' | 'b' | 'c' | 'd'
 
+class AbandonRequest(BaseModel):
+    session_id: str
 
-@router.post("/start", summary="Почати квіз у локації")
-def start_quiz(
-    request: StartQuizRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+
+@router.post("/start")
+def start_quiz(req: StartQuizRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
-        result = quiz_service.start_quiz(current_user, request.location_slug, db)
-        return result
+        return quiz_service.start_quiz(current_user, req.location_slug, db)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/answer", summary="Відповісти на питання квізу")
-def answer_question(
-    request: AnswerRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    if request.selected_option not in ("a", "b", "c", "d"):
-        raise HTTPException(status_code=422, detail="Варіант відповіді має бути: a, b, c або d")
-
+@router.post("/answer")
+def answer_question(req: AnswerRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if req.selected_option not in ("a", "b", "c", "d"):
+        raise HTTPException(status_code=422, detail="Варіант має бути: a, b, c або d")
     try:
-        result = quiz_service.answer_question(
-            current_user,
-            request.session_id,
-            request.question_id,
-            request.selected_option,
-            db,
-        )
-        return result
+        return quiz_service.answer_question(current_user, req.session_id, req.question_id, req.selected_option, db)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/session/{session_id}", summary="Поточний стан сесії квізу")
-def get_session(
-    session_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+@router.post("/abandon")
+def abandon_quiz(req: AbandonRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        return quiz_service.abandon_quiz(current_user, req.session_id, db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/session/{session_id}")
+def get_session(session_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         return quiz_service.get_current_question(current_user, session_id, db)
     except ValueError as e:

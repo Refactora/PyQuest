@@ -1,12 +1,14 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { XpBar } from '../ui'
+import { DailyQuestsPanel } from '../game/DailyQuests'
 import clsx from 'clsx'
 
 const NAV_ITEMS = [
-  { path: '/map', label: '🗺️ Карта', icon: '🗺️' },
-  { path: '/leaderboard', label: '🏆 Лідери', icon: '🏆' },
-  { path: '/profile', label: '⚔️ Профіль', icon: '⚔️' },
+  { path: '/map',          label: '🗺️ Карта' },
+  { path: '/leaderboard',  label: '🏆 Лідери' },
+  { path: '/achievements', label: '🏅 Ачівменти' },
+  { path: '/profile',      label: '⚔️ Профіль' },
 ]
 
 export function Navbar() {
@@ -14,65 +16,55 @@ export function Navbar() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
-
   if (!user) return null
 
   return (
-    <nav className="bg-gray-900 border-b border-gray-700 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
-      {/* Логотип */}
+    <nav className="bg-gray-900 border-b border-gray-700 px-4 py-2 flex items-center justify-between sticky top-0 z-50">
       <Link to="/map" className="text-yellow-400 font-bold text-xl flex items-center gap-2">
         <span>🐍</span>
         <span className="hidden sm:inline">PyQuest</span>
       </Link>
 
-      {/* Навігація */}
       <div className="flex items-center gap-1">
         {NAV_ITEMS.map((item) => (
           <Link
             key={item.path}
             to={item.path}
             className={clsx(
-              'px-3 py-2 rounded-lg text-sm transition-colors',
+              'px-3 py-1.5 rounded-lg text-sm transition-colors',
               location.pathname.startsWith(item.path)
                 ? 'bg-yellow-500 text-black font-bold'
                 : 'text-gray-400 hover:text-white hover:bg-gray-700'
             )}
           >
-            <span className="sm:hidden">{item.icon}</span>
-            <span className="hidden sm:inline">{item.label}</span>
+            {item.label}
           </Link>
         ))}
       </div>
 
-      {/* Юзер інфо */}
       <div className="flex items-center gap-3">
-        {/* XP мінібар */}
-        <div className="hidden md:block w-32">
+        <DailyQuestsPanel />
+
+        <div className="hidden md:block w-28">
           <XpBar current={user.xp} total={user.xp_to_next} level={user.level} />
         </div>
 
-        {/* Стрік */}
         {user.streak_days > 0 && (
-          <span className="text-orange-400 text-sm font-bold" title="Стрік">
+          <span className="text-orange-400 text-sm font-bold" title={`Стрік ${user.streak_days} днів`}>
             🔥{user.streak_days}
           </span>
         )}
 
-        {/* Аватар + ім'я */}
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-lg">
-            {['🧙', '🦊', '🐉', '⚡'][user.avatar_id - 1] || '🧙'}
+            {['🧙','🦊','🐉','⚡'][user.avatar_id - 1] ?? '🧙'}
           </div>
-          <span className="text-white text-sm font-medium hidden sm:inline">{user.username}</span>
+          <span className="text-white text-sm hidden sm:inline">{user.username}</span>
         </div>
 
         <button
-          onClick={handleLogout}
-          className="text-gray-400 hover:text-red-400 text-sm transition-colors ml-1"
+          onClick={() => { logout(); navigate('/login') }}
+          className="text-gray-400 hover:text-red-400 transition-colors"
           title="Вийти"
         >
           🚪

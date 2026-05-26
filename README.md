@@ -1,147 +1,173 @@
 # 🐍 PyQuest — Python RPG
 
-Інтерактивна RPG-гра для вивчення Python. Воюй з крипами через квіз, перемагай босів розв'язуючи задачі.
+> Вивчай Python через RPG-пригоду: б'єшся з крипами через квіз, перемагаєш босів розв'язуючи задачі.
 
 ---
 
-## 🏗️ Структура проєкту
+## 🗂️ Структура
 
 ```
 PyQuest/
-├── backend/              # FastAPI + SQLite
+├── backend/
 │   ├── app/
-│   │   ├── api/         # auth, locations, quiz, boss, profile, leaderboard
-│   │   ├── core/        # config, database, security
-│   │   ├── models/      # SQLAlchemy моделі
-│   │   ├── schemas/     # Pydantic схеми
-│   │   ├── services/    # xp_service, quiz_service, judge0_service
-│   │   ├── seeds/       # seed_db.py — 10 локацій, 200 питань, 10 задач
-│   │   └── main.py
+│   │   ├── api/           auth · locations · quiz · boss · profile · leaderboard · daily_quests
+│   │   ├── core/          config · database · security · redis
+│   │   ├── models/        User · Location · Question · BossChallenge · Progress · DailyQuest
+│   │   ├── schemas/       auth (з валідацією паролю та username regex)
+│   │   ├── services/      xp_service · quiz_service · judge0_service · claude_service · daily_quest_service
+│   │   └── seeds/         seed_db · questions (200 шт.) · boss_challenges (10 шт. по ТЗ)
+│   ├── alembic/           міграції PostgreSQL
 │   ├── requirements.txt
-│   └── run.sh
-└── frontend/             # React + TypeScript + Tailwind
-    ├── src/
-    │   ├── components/  # ui/, game/, layout/
-    │   ├── pages/       # Login, Register, Map, Location, Profile, Leaderboard
-    │   ├── services/    # api.ts (axios)
-    │   ├── store/       # authStore, gameStore (Zustand)
-    │   └── types/       # TypeScript типи
-    └── package.json
+│   ├── Dockerfile
+│   └── .env.example
+├── frontend/
+│   ├── src/
+│   │   ├── components/    ui · game · layout (з DailyQuestsPanel)
+│   │   ├── pages/         Login · Register · Map · Location · Profile · Leaderboard · Achievements
+│   │   ├── services/      api.ts (axios + авто-refresh)
+│   │   ├── store/         authStore · gameStore (quiz + boss)
+│   │   └── types/         повні TypeScript типи
+│   └── .env.example
+└── docker-compose.yml
 ```
 
 ---
 
-## 🚀 Швидкий старт
+## 🚀 Запуск через Docker (рекомендовано)
+
+```bash
+# 1. Скопіюй .env файли
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+
+# 2. Запустити все
+docker-compose up --build
+
+# Фронтенд: http://localhost:5173
+# Бекенд:   http://localhost:8000
+# API docs: http://localhost:8000/docs
+```
+
+---
+
+## 🛠️ Запуск локально
 
 ### Backend
 
 ```bash
 cd backend
 
-# 1. Встановити залежності
-python -m venv venv
-source venv/bin/activate     # Windows: venv\Scripts\activate
+# Встановити залежності
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Наповнити базу даних (локації, питання, задачі)
+# Запустити PostgreSQL і Redis (або через Docker окремо):
+docker run -d -p 5432:5432 -e POSTGRES_DB=pyquest -e POSTGRES_USER=pyquest -e POSTGRES_PASSWORD=devpassword postgres:16
+docker run -d -p 6379:6379 redis:7
+
+# Налаштувати .env
+cp .env.example .env
+
+# Міграції + seed
+alembic upgrade head
 python -m app.seeds.seed_db
 
-# 3. Запустити сервер
+# Запуск
 uvicorn app.main:app --reload
-
-# Або одразу:
-bash run.sh
 ```
-
-Бекенд: http://localhost:8000  
-Документація API: http://localhost:8000/docs
 
 ### Frontend
 
 ```bash
 cd frontend
-
+cp .env.example .env
 npm install
 npm run dev
 ```
 
-Фронтенд: http://localhost:5173
-
 ---
 
-## 🔑 Налаштування (.env)
+## 🔑 .env змінні
 
-```env
-# backend/.env
-SECRET_KEY=your-secret-key-here
-DATABASE_URL=sqlite:///./pyquest.db
+| Змінна | Опис | Обов'язково |
+|--------|------|-------------|
+| `SECRET_KEY` | JWT секрет (≥32 символи) | ✅ |
+| `DATABASE_URL` | PostgreSQL URL | ✅ |
+| `REDIS_URL` | Redis URL | ✅ |
+| `JUDGE0_API_KEY` | [RapidAPI Judge0](https://rapidapi.com/judge0-official/api/judge0-ce) — виконання коду | ❌* |
+| `CLAUDE_API_KEY` | [Anthropic API](https://console.anthropic.com/) — AI підказки | ❌* |
 
-# Опціонально — для виконання коду у босс-файті
-# Без цього ключа використовується локальний subprocess (тільки для розробки)
-JUDGE0_API_KEY=your-rapidapi-key
-```
-
-**Judge0 API** (безкоштовний план): https://rapidapi.com/judge0-official/api/judge0-ce
+> *Без ключів: Judge0 → локальний subprocess; Claude → статичні підказки.
 
 ---
 
 ## 🎮 Ігровий процес
 
-1. **Реєстрація** → вибір аватара
-2. **Карта** → 10 локацій, відкриваються послідовно
-3. **Квіз** (по 10 питань):
-   - Правильна відповідь → вбиваєш крипа, +10 XP
-   - Неправильна → крип атакує (−1 HP)
-   - HP = 0 → смерть, рестарт квізу
-   - Пройшов квіз → відкривається бій з босом
-4. **Бій з босом** (задача на код):
-   - Пишеш Python функцію в редакторі Monaco
-   - Відправляєш → запускаються тест-кейси
-   - Кожен пройдений тест → −20 HP босу
-   - Жоден не пройшов → бос атакує
-   - Бос переможений → локація завершена, відкривається наступна
-5. **Підказки**: 3 підказки (−10/−10/−15 HP)
-6. **XP система**: рівні, досягнення, лідерборд
+1. **Реєстрація** — ім'я (`^[a-zA-Z0-9_]+$`), email, пароль (≥8 символів, літера+цифра), аватар
+2. **Карта** — 10 локацій, відкриваються послідовно
+3. **Квіз** (10 питань):
+   - Правильно → вбиваєш крипа, +10 XP
+   - Неправильно → крип атакує (−1 HP)
+   - HP=0 → смерть, рестарт
+4. **Бос** (задача на код, Monaco Editor):
+   - Тести → шкода босу пропорційна до пройдених тестів
+   - 0 тестів → бос атакує
+   - 3 підказки: статичні (−HP) + AI (після 2 спроб, без HP)
+5. **Щоденні квести** — 3 квести/день у navbar dropdown
+6. **XP → рівні → ачівменти → лідерборд**
 
 ---
 
-## 🏆 Локації
+## 🏆 10 Локацій та задачі босів (по ТЗ)
 
-| # | Назва | Тема |
-|---|-------|------|
-| 1 | Рівнина Початку | Змінні та типи |
-| 2 | Ліс Умов | if/elif/else |
-| 3 | Печера Циклів | for/while |
-| 4 | Вежа Функцій | def, lambda |
-| 5 | Болото Списків | list, comprehension |
-| 6 | Замок Словників | dict, set |
-| 7 | Хмарний Острів | Рядки |
-| 8 | Темний Ліс Помилок | try/except |
-| 9 | Цитадель Класів | OOP |
-| 10 | Фінальна Вежа | Модулі |
+| # | Локація | Тема квізу | Задача боса |
+|---|---------|-----------|-------------|
+| 1 | Рівнина Початку | Змінні та типи | `celsius_to_fahrenheit(c)` |
+| 2 | Ліс Умов | if/elif/else | `classify_number(n)` |
+| 3 | Печера Циклів | for/while | `sum_digits(n)` |
+| 4 | Вежа Функцій | def/lambda | `is_palindrome(s)` |
+| 5 | Болото Списків | list/comprehension | `find_max(lst)` без max() |
+| 6 | Замок Словників | dict/set | `word_count(text)` |
+| 7 | Хмарний Острів | Рядки/f-strings | `format_name(first, last)` |
+| 8 | Ліс Помилок | try/except | `safe_divide(a, b)` |
+| 9 | Цитадель Класів | OOP | клас `Rectangle` |
+| 10 | Фінальна Вежа | Модулі | `days_until(date_str)` |
 
 ---
 
-## 🔌 API Ендпоінти
+## 🔌 API ендпоінти
 
 ```
-POST /api/auth/register
-POST /api/auth/login
-GET  /api/auth/me
+POST   /api/auth/register
+POST   /api/auth/login
+POST   /api/auth/refresh
+POST   /api/auth/logout
+GET    /api/auth/me
 
-GET  /api/locations
-GET  /api/locations/{slug}
+GET    /api/locations
+GET    /api/locations/{slug}
+POST   /api/locations/{slug}/enter
 
-POST /api/quiz/start
-POST /api/quiz/answer
-GET  /api/quiz/session/{id}
+POST   /api/quiz/start
+POST   /api/quiz/answer
+POST   /api/quiz/abandon
+GET    /api/quiz/session/{id}
 
-POST /api/boss/start
-POST /api/boss/submit
-POST /api/boss/hint
+POST   /api/boss/start
+POST   /api/boss/submit
+POST   /api/boss/hint
+POST   /api/boss/ai-hint
 
-GET  /api/profile
-PATCH /api/profile/avatar
+GET    /api/profile
+PATCH  /api/profile/avatar
 
-GET  /api/leaderboard
+GET    /api/leaderboard?period=all|weekly
+
+GET    /api/daily-quests
 ```
+
+---
+
+## 🏅 Ачівменти (14 шт.)
+
+`first_blood` · `no_death_1` · `boss_slayer` · `all_bosses` · `perfectionist` · `first_try` · `no_hints` · `streak_3` · `streak_7` · `streak_30` · `speed_run` · `completionist` · `level_10` · `level_20`

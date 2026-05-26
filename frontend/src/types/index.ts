@@ -223,3 +223,22 @@ export interface LeaderboardResponse {
   my_entry: LeaderboardEntry | null
   total_players: number
 }
+
+// ===== DAILY QUESTS =====
+export interface DailyQuest {
+  id: number
+  quest_type: string
+  description: string
+  target_value: number
+  current_value: number
+  xp_reward: number
+  is_completed: boolean
+  progress_pct: number
+}
+
+export interface DailyQuestsResponse {
+  quests: DailyQuest[]
+  completed: number
+  total: number
+  all_done: boolean
+}

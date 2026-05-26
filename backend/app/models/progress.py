@@ -1,8 +1,8 @@
 import uuid
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Integer, String, Text,
-    ForeignKey, JSON, ARRAY
+    Boolean, Column, DateTime, Integer, String,
+    ForeignKey, JSON, Date, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -12,14 +12,13 @@ from app.core.database import Base
 
 class UserLocationProgress(Base):
     __tablename__ = "user_location_progress"
+    __table_args__ = (UniqueConstraint("user_id", "location_id"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     location_id = Column(Integer, ForeignKey("locations.id"), nullable=False)
 
-    # 'locked' | 'available' | 'in_progress' | 'completed'
     status = Column(String(20), nullable=False, default="locked")
-
     quiz_completed = Column(Boolean, default=False)
     boss_defeated = Column(Boolean, default=False)
 
@@ -33,7 +32,6 @@ class UserLocationProgress(Base):
 
     completed_at = Column(DateTime, nullable=True)
 
-    # Relationships
     user = relationship("User", back_populates="location_progress")
     location = relationship("Location", back_populates="user_progress")
 
@@ -45,9 +43,8 @@ class QuizSession(Base):
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     location_id = Column(Integer, ForeignKey("locations.id"), nullable=False)
 
-    questions_order = Column(JSON, nullable=False)  # список ID питань у перемішаному порядку
+    questions_order = Column(JSON, nullable=False)
     current_index = Column(Integer, default=0)
-
     hero_hp = Column(Integer, nullable=False)
     correct_answers = Column(Integer, default=0)
     wrong_answers = Column(Integer, default=0)
@@ -56,7 +53,6 @@ class QuizSession(Base):
     completed_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
 
-    # Relationships
     user = relationship("User", back_populates="quiz_sessions")
 
 
@@ -70,14 +66,13 @@ class BossSession(Base):
     hero_hp = Column(Integer, nullable=False)
     boss_hp = Column(Integer, nullable=False, default=100)
     hints_used = Column(Integer, default=0)
-    submissions = Column(JSON, default=list)  # [{attempt, code, test_results, passed_count, timestamp}]
+    submissions = Column(JSON, default=list)
 
     started_at = Column(DateTime, server_default=func.now())
     completed_at = Column(DateTime, nullable=True)
     is_won = Column(Boolean, nullable=True)
     is_active = Column(Boolean, default=True)
 
-    # Relationships
     user = relationship("User", back_populates="boss_sessions")
     challenge = relationship("BossChallenge", back_populates="boss_sessions")
 
@@ -88,7 +83,7 @@ class Achievement(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     slug = Column(String(50), unique=True, nullable=False)
     name = Column(String(100), nullable=False)
-    description = Column(Text, nullable=False)
+    description = Column(String(500), nullable=False)
     icon_id = Column(String(50), nullable=False)
     xp_reward = Column(Integer, default=0)
 
@@ -97,6 +92,7 @@ class Achievement(Base):
 
 class UserAchievement(Base):
     __tablename__ = "user_achievements"
+    __table_args__ = (UniqueConstraint("user_id", "achievement_id"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -105,3 +101,21 @@ class UserAchievement(Base):
 
     user = relationship("User", back_populates="achievements")
     achievement = relationship("Achievement", back_populates="user_achievements")
+
+
+class DailyQuest(Base):
+    __tablename__ = "daily_quests"
+    __table_args__ = (UniqueConstraint("user_id", "quest_date", "quest_type"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    quest_date = Column(Date, nullable=False, server_default=func.current_date())
+    quest_type = Column(String(50), nullable=False)
+    description = Column(String(300), nullable=False)
+    target_value = Column(Integer, nullable=False)
+    current_value = Column(Integer, default=0)
+    xp_reward = Column(Integer, nullable=False)
+    is_completed = Column(Boolean, default=False)
+    completed_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="daily_quests")

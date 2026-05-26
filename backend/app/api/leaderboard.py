@@ -1,66 +1,67 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, func, text
+from datetime import date, timedelta
 
 from app.core.database import get_db
 from app.api.auth import get_current_user
 from app.models.user import User
+from app.models.progress import BossSession
 from app.services.xp_service import get_title_for_level
 
 router = APIRouter(prefix="/leaderboard", tags=["Leaderboard"])
 
-TOP_LIMIT = 100
+
+def _fmt_entry(rank: int, user: User, is_me: bool, xp_field: int) -> dict:
+    return {
+        "rank": rank, "user_id": user.id, "username": user.username,
+        "avatar_id": user.avatar_id, "level": user.level,
+        "title": get_title_for_level(user.level),
+        "total_xp": xp_field, "is_me": is_me,
+    }
 
 
-@router.get("", summary="Глобальний лідерборд (за total_xp)")
+@router.get("")
 def get_leaderboard(
-    limit: int = Query(default=50, ge=1, le=TOP_LIMIT),
+    period: str = Query(default="all", description="all | weekly"),
+    limit: int = Query(default=50, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    top_users = (
-        db.query(User)
-        .order_by(desc(User.total_xp))
-        .limit(limit)
-        .all()
-    )
+    if period == "weekly":
+        since = date.today() - timedelta(days=7)
+        # За тиждень рахуємо XP отримані через перемоги над босами
+        # Спрощено: сортуємо по total_xp але фільтруємо активних за тиждень
+        users = (
+            db.query(User)
+            .join(BossSession, BossSession.user_id == User.id)
+            .filter(BossSession.completed_at >= since, BossSession.is_won == True)
+            .group_by(User.id)
+            .order_by(desc(func.count(BossSession.id)))
+            .limit(limit)
+            .all()
+        )
+        xp_map = {u.id: u.total_xp for u in users}
+    else:
+        users = db.query(User).filter(User.is_active == True).order_by(desc(User.total_xp)).limit(limit).all()
+        xp_map = {u.id: u.total_xp for u in users}
 
-    result = []
-    for rank, user in enumerate(top_users, start=1):
-        result.append({
-            "rank": rank,
-            "user_id": user.id,
-            "username": user.username,
-            "avatar_id": user.avatar_id,
-            "level": user.level,
-            "title": get_title_for_level(user.level),
-            "total_xp": user.total_xp,
-            "is_me": user.id == current_user.id,
-        })
+    entries = [_fmt_entry(i + 1, u, u.id == current_user.id, xp_map[u.id]) for i, u in enumerate(users)]
 
-    # Знайти позицію поточного юзера якщо він не в топі
     my_rank = None
     my_entry = None
-    if not any(u["is_me"] for u in result):
-        all_users = db.query(User).order_by(desc(User.total_xp)).all()
-        for rank, user in enumerate(all_users, start=1):
-            if user.id == current_user.id:
-                my_rank = rank
-                my_entry = {
-                    "rank": rank,
-                    "user_id": user.id,
-                    "username": user.username,
-                    "avatar_id": user.avatar_id,
-                    "level": user.level,
-                    "title": get_title_for_level(user.level),
-                    "total_xp": user.total_xp,
-                    "is_me": True,
-                }
+    if not any(e["is_me"] for e in entries):
+        all_users = db.query(User).filter(User.is_active == True).order_by(desc(User.total_xp)).all()
+        for i, u in enumerate(all_users):
+            if u.id == current_user.id:
+                my_rank = i + 1
+                my_entry = _fmt_entry(i + 1, u, True, u.total_xp)
                 break
 
     return {
-        "leaderboard": result,
-        "my_rank": my_rank or (next((i + 1 for i, u in enumerate(result) if u["is_me"]), None)),
+        "leaderboard": entries,
+        "period": period,
+        "my_rank": my_rank or next((i + 1 for i, e in enumerate(entries) if e["is_me"]), None),
         "my_entry": my_entry,
-        "total_players": db.query(User).count(),
+        "total_players": db.query(User).filter(User.is_active == True).count(),
     }
